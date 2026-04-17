@@ -1,51 +1,60 @@
 # pi-transcript
 
-A [pi](https://github.com/mariozechner/pi-coding-agent) package that adds session transcript viewing and automatic session naming.
-
-## Features
-
-- **`/transcript`** — Opens a full-screen TUI view of the current session's user and assistant messages, stripping out tool noise so you see just the conversation.
-- **`/session-rename`** — Renames the current session. Pass a name as an argument, or run it without args to auto-generate one using an LLM.
-- **`/session-namer-model`** — Configures which model generates session names. Presents an interactive model picker with type-to-filter.
-- **Auto-naming on exit** — When a session ends without a custom name, automatically generates one from the transcript (requires a configured model and at least 4 messages).
+A [pi](https://github.com/mariozechner/pi-coding-agent) extension that adds session transcript viewing and automatic session naming.
 
 ## Install
 
 ```bash
-# From a local path
-pi install /path/to/pi-transcript
+# Global (user-level)
+pi install ssh://git@github.com/SunflowerFuchs/pi-transcript.git
 
-# Or try without installing
-pi -e /path/to/pi-transcript
+# Project-level (shared with team via .pi/settings.json)
+pi install -l ssh://git@github.com/SunflowerFuchs/pi-transcript.git
+
+# Try without installing
+pi -e ssh://git@github.com/SunflowerFuchs/pi-transcript.git
 ```
 
-## Setup
+## What's Included
 
-Session auto-naming requires a model to be configured:
+| Type | Name | Description |
+|------|------|-------------|
+| Command | `/transcript` | Full-screen view of the session conversation, minus tool noise |
+| Command | `/session-rename` | Rename the current session (auto-generates name if none given) |
+| Command | `/session-namer-model` | Configure which model generates session names |
 
-1. Run `/session-namer-model`
-2. Pick a model from the list (type to filter)
-3. Done — new sessions will be auto-named on exit
+## Usage
 
-You can disable auto-naming by selecting `(disable)` from the model picker.
+### `/transcript`
 
-## Commands
+Opens a full-screen TUI view of the current session's user and assistant messages, stripping out tool noise so you see just the conversation. Press Escape, Enter, or Q to close.
 
-| Command | Description |
-|---|---|
-| `/transcript` | Show session transcript (Esc/Enter/Q to close) |
-| `/session-rename [name]` | Rename session — auto-generates if no name given |
-| `/session-namer-model` | Configure the model used for name generation |
+### `/session-rename [name]`
+
+Renames the current session. Pass a name as an argument, or run it without args to auto-generate one using an LLM.
+
+### `/session-namer-model`
+
+Configures which model generates session names. Presents an interactive model picker with type-to-filter. Select `(disable)` to turn off auto-naming.
+
+### Configuration
+
+Auto-naming on exit requires a model to be configured via `/session-namer-model`. When a session ends without a custom name, it automatically generates one from the transcript (requires a configured model and at least 4 messages).
 
 ## How It Works
 
-The transcript builder walks the session branch and extracts only user and assistant text messages, plus `askUser` questions and responses. Tool calls, results, and other noise are filtered out so you get a clean conversation view.
+The transcript builder walks the session branch and extracts only user and assistant text messages, plus `askUser` questions and responses. Tool calls, results, and other noise are filtered out for a clean conversation view.
 
 Auto-naming sends the transcript to your configured model with a prompt tuned to produce short, distinguishing session names that reflect the actual work done.
 
 ## Development
 
 ```bash
-npm run typecheck   # TypeScript type checking
-npm test            # Run tests
+npm install
+npm run typecheck
+npm test
 ```
+
+## License
+
+MIT
