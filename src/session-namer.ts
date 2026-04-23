@@ -54,6 +54,7 @@ const NAMING_PROMPT = [
 async function generateSessionName(
 	transcript: TranscriptMessage[],
 	modelRegistry: any,
+	extensions: { emit: (event: string, data: any) => void } | undefined,
 ): Promise<string> {
 	const modelSpec = getConfiguredModel();
 	if (!modelSpec) throw new Error("No session namer model configured. Run /session-namer-model first.");
@@ -84,6 +85,15 @@ async function generateSessionName(
 		},
 		{ apiKey: auth.apiKey, headers: auth.headers },
 	);
+
+	extensions?.emit("model:usage", {
+		provider: model.provider,
+		model: model.id,
+		input: response.usage?.input ?? 0,
+		output: response.usage?.output ?? 0,
+		cacheRead: response.usage?.cacheRead ?? 0,
+		cacheWrite: response.usage?.cacheWrite ?? 0,
+	});
 
 	const name = response.content
 		.filter((c): c is { type: "text"; text: string } => c.type === "text")
@@ -227,7 +237,7 @@ export function registerSessionNamer(pi: ExtensionAPI) {
 			ctx.ui.notify("Generating session name...", "info");
 
 			try {
-				const generated = await generateSessionName(transcript, ctx.modelRegistry);
+				const generated = await generateSessionName(transcript, ctx.modelRegistry, pi.events);
 				pi.setSessionName(generated);
 				ctx.ui.notify(`Session renamed: ${generated}`, "info");
 			} catch (e: any) {
@@ -247,7 +257,7 @@ export function registerSessionNamer(pi: ExtensionAPI) {
 
 		try {
 			if (ctx.hasUI) ctx.ui.setStatus("session-namer", "Generating session name...");
-			const name = await generateSessionName(transcript, ctx.modelRegistry);
+			const name = await generateSessionName(transcript, ctx.modelRegistry, pi.events);
 			if (name) pi.setSessionName(name);
 			if (ctx.hasUI) ctx.ui.setStatus("session-namer", undefined);
 		} catch {
