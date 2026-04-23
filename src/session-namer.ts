@@ -249,6 +249,7 @@ export function registerSessionNamer(pi: ExtensionAPI) {
 	// Generate session name on shutdown
 	pi.on("session_shutdown", async (_event, ctx) => {
 		if (pi.getSessionName()) return;
+		if (!ctx.sessionManager.getSessionFile()) return;
 		if (!getConfiguredModel()) return;
 
 		const branch = ctx.sessionManager.getBranch();
