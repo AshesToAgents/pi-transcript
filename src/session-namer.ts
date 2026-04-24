@@ -256,13 +256,14 @@ export function registerSessionNamer(pi: ExtensionAPI) {
 		const transcript = buildTranscript(branch);
 		if (transcript.length < 4) return;
 
+		// TUI is already stopped by the time session_shutdown fires,
+		// so setStatus is a no-op. Write directly to stdout instead.
+		process.stdout.write("Generating session name...\n");
 		try {
-			if (ctx.hasUI) ctx.ui.setStatus("session-namer", "Generating session name...");
 			const name = await generateSessionName(transcript, ctx.modelRegistry, pi.events);
 			if (name) pi.setSessionName(name);
-			if (ctx.hasUI) ctx.ui.setStatus("session-namer", undefined);
 		} catch {
-			if (ctx.hasUI) ctx.ui.setStatus("session-namer", undefined);
+			// naming failed silently, session keeps default name
 		}
 	});
 }
