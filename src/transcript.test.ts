@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildTranscript } from "./transcript.js";
+import { buildTranscript, takeLast } from "./transcript.js";
 
 describe("buildTranscript", () => {
 	it("returns empty for empty entries", () => {
@@ -56,5 +56,32 @@ describe("buildTranscript", () => {
 	it("skips non-message entries", () => {
 		const entries = [{ type: "tool_result", message: { role: "user" } }];
 		expect(buildTranscript(entries as any)).toEqual([]);
+	});
+});
+
+describe("takeLast", () => {
+	it("returns last N messages from transcript", () => {
+		const messages = [
+			{ label: "You", text: "a" },
+			{ label: "Assistant", text: "b" },
+			{ label: "You", text: "c" },
+			{ label: "Assistant", text: "d" },
+		];
+		expect(takeLast(messages, 2)).toEqual([
+			{ label: "You", text: "c" },
+			{ label: "Assistant", text: "d" },
+		]);
+	});
+
+	it("returns all messages when count exceeds length", () => {
+		const messages = [
+			{ label: "You", text: "a" },
+			{ label: "Assistant", text: "b" },
+		];
+		expect(takeLast(messages, 5)).toEqual(messages);
+	});
+
+	it("returns empty for empty transcript", () => {
+		expect(takeLast([], 3)).toEqual([]);
 	});
 });

@@ -76,6 +76,11 @@ export const buildTranscript = (entries: SessionEntry[]): TranscriptMessage[] =>
 	return messages;
 };
 
+export function takeLast(messages: TranscriptMessage[], count: number): TranscriptMessage[] {
+	if (count >= messages.length) return messages;
+	return messages.slice(-count);
+}
+
 const showTranscript = async (transcript: TranscriptMessage[], ctx: ExtensionCommandContext) => {
 	if (!ctx.hasUI) return;
 
