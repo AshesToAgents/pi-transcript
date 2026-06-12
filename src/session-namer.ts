@@ -164,6 +164,7 @@ export function registerSessionNamer(pi: ExtensionAPI) {
 	let namingInProgress = false;
 	let namingPromise: Promise<void> | undefined;
 	let assistantTurnCount = 0;
+	let lastRenameTurn = 0;
 
 	// Command to configure the model
 	pi.registerCommand("session-namer-model", {
@@ -323,11 +324,12 @@ export function registerSessionNamer(pi: ExtensionAPI) {
 				if (!currentName) {
 					prompt = buildInitialPrompt(fullTranscript);
 				} else {
-					const windowSize = Math.min(interval * 2, maxWindow);
-					const messageWindow = windowSize * 2;
+					const gap = assistantTurnCount - lastRenameTurn;
+					const messageWindow = gap * 2;
 					const recentMessages = takeLast(fullTranscript, messageWindow);
 					prompt = buildIncrementalPrompt(currentName, recentMessages);
 				}
+				lastRenameTurn = assistantTurnCount;
 
 				const name = await generateSessionName(prompt, ctx.modelRegistry, pi.events);
 				if (name) pi.setSessionName(name);
