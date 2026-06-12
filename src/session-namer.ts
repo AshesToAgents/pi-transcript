@@ -4,7 +4,7 @@ import { complete } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { DynamicBorder, getAgentDir } from "@mariozechner/pi-coding-agent";
 import { type SelectItem, SelectList, Text } from "@mariozechner/pi-tui";
-import { buildTranscript, type TranscriptMessage } from "./transcript.js";
+import { buildTranscript, takeLast, type TranscriptMessage } from "./transcript.js";
 
 const SETTINGS_KEY = "sessionNamerModel";
 export const SETTINGS_KEY_INTERVAL = "sessionNamerInterval";
@@ -91,7 +91,7 @@ export function buildIncrementalPrompt(currentName: string, recentMessages: Tran
 }
 
 async function generateSessionName(
-	transcript: TranscriptMessage[],
+	prompt: string,
 	modelRegistry: any,
 	extensions: { emit: (event: string, data: any) => void } | undefined,
 ): Promise<string> {
@@ -107,9 +107,6 @@ async function generateSessionName(
 
 	const auth = await modelRegistry?.getApiKeyAndHeaders(model);
 	if (!auth?.ok || !auth.apiKey) throw new Error(`No API key for ${modelSpec}`);
-
-	const conversationText = transcript.map((m) => `${m.label}: ${m.text}`).join("\n\n");
-	const prompt = `${INITIAL_NAMING_PROMPT}\n${conversationText}\n</conversation>`;
 
 	const response = await complete(
 		model,
@@ -164,6 +161,10 @@ export function isRenameTurn(turnIndex: number, interval: number, maxWindow: num
 }
 
 export function registerSessionNamer(pi: ExtensionAPI) {
+	let namingInProgress = false;
+	let namingPromise: Promise<void> | undefined;
+	let assistantTurnCount = 0;
+
 	// Command to configure the model
 	pi.registerCommand("session-namer-model", {
 		description: "Configure which model generates session names on exit",
@@ -287,7 +288,8 @@ export function registerSessionNamer(pi: ExtensionAPI) {
 			ctx.ui.notify("Generating session name...", "info");
 
 			try {
-				const generated = await generateSessionName(transcript, ctx.modelRegistry, pi.events);
+				const prompt = buildInitialPrompt(transcript);
+				const generated = await generateSessionName(prompt, ctx.modelRegistry, pi.events);
 				pi.setSessionName(generated);
 				ctx.ui.notify(`Session renamed: ${generated}`, "info");
 			} catch (e: any) {
@@ -296,12 +298,60 @@ export function registerSessionNamer(pi: ExtensionAPI) {
 		},
 	});
 
+	// Incrementally rename session based on assistant turn count and backoff schedule
+	pi.on("turn_end", async (event, ctx) => {
+		if (event.message?.role !== "assistant") return;
+
+		assistantTurnCount++;
+		const interval = getNamingInterval();
+		const maxWindow = getMaxWindow();
+
+		if (!isRenameTurn(assistantTurnCount, interval, maxWindow)) return;
+		if (!getConfiguredModel()) return;
+		if (namingInProgress) return;
+
+		namingInProgress = true;
+		namingPromise = (async () => {
+			try {
+				const branch = ctx.sessionManager.getBranch();
+				const fullTranscript = buildTranscript(branch);
+				if (fullTranscript.length < 4) return;
+
+				const currentName = pi.getSessionName();
+				let prompt: string;
+
+				if (!currentName) {
+					prompt = buildInitialPrompt(fullTranscript);
+				} else {
+					const windowSize = Math.min(interval * 2, maxWindow);
+					const messageWindow = windowSize * 2;
+					const recentMessages = takeLast(fullTranscript, messageWindow);
+					prompt = buildIncrementalPrompt(currentName, recentMessages);
+				}
+
+				const name = await generateSessionName(prompt, ctx.modelRegistry, pi.events);
+				if (name) pi.setSessionName(name);
+			} catch {
+				// naming failed silently
+			} finally {
+				namingInProgress = false;
+			}
+		})();
+	});
+
 	// Generate session name on shutdown
 	pi.on("session_shutdown", async (_event, ctx) => {
 		if (pi.getSessionName()) return;
 		if (!ctx.sessionManager.getSessionFile()) return;
 		if (!getConfiguredModel()) return;
 
+		// If a rename is in-flight, just wait for it
+		if (namingPromise) {
+			await namingPromise;
+			return;
+		}
+
+		// Session never hit the first threshold — generate from full transcript
 		const branch = ctx.sessionManager.getBranch();
 		const transcript = buildTranscript(branch);
 		if (transcript.length < 4) return;
@@ -310,7 +360,8 @@ export function registerSessionNamer(pi: ExtensionAPI) {
 		// so setStatus is a no-op. Write directly to stdout instead.
 		process.stdout.write("Generating session name...\n");
 		try {
-			const name = await generateSessionName(transcript, ctx.modelRegistry, pi.events);
+			const prompt = buildInitialPrompt(transcript);
+			const name = await generateSessionName(prompt, ctx.modelRegistry, pi.events);
 			if (name) pi.setSessionName(name);
 		} catch {
 			// naming failed silently, session keeps default name
