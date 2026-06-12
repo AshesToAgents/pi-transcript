@@ -7,6 +7,11 @@ import { type SelectItem, SelectList, Text } from "@mariozechner/pi-tui";
 import { buildTranscript, type TranscriptMessage } from "./transcript.js";
 
 const SETTINGS_KEY = "sessionNamerModel";
+export const SETTINGS_KEY_INTERVAL = "sessionNamerInterval";
+export const SETTINGS_KEY_MAX_WINDOW = "sessionNamerMaxWindow";
+
+const DEFAULT_INTERVAL = 4;
+const DEFAULT_MAX_WINDOW = 12;
 
 function readSettings(): Record<string, unknown> {
 	const settingsPath = path.join(getAgentDir(), "settings.json");
@@ -28,6 +33,20 @@ function getConfiguredModel(): string | undefined {
 	const settings = readSettings();
 	const value = settings[SETTINGS_KEY];
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+export function getNamingInterval(): number {
+	const settings = readSettings();
+	const value = settings[SETTINGS_KEY_INTERVAL];
+	if (typeof value === "number" && value >= 1) return value;
+	return DEFAULT_INTERVAL;
+}
+
+export function getMaxWindow(): number {
+	const settings = readSettings();
+	const value = settings[SETTINGS_KEY_MAX_WINDOW];
+	if (typeof value === "number" && value >= 1) return value;
+	return DEFAULT_MAX_WINDOW;
 }
 
 function transcriptToText(transcript: TranscriptMessage[]): string {
