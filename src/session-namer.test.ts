@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
 
-import { getNamingInterval, getMaxWindow, SETTINGS_KEY_INTERVAL, SETTINGS_KEY_MAX_WINDOW, isRenameTurn } from "./session-namer.js";
+import { getNamingInterval, getMaxWindow, SETTINGS_KEY_INTERVAL, SETTINGS_KEY_MAX_WINDOW, isRenameTurn, lastScheduledTurn } from "./session-namer.js";
 
 describe("session-namer settings", () => {
 	let tmpDir: string;
@@ -90,6 +90,27 @@ describe("isRenameTurn (backoff schedule)", () => {
 });
 
 import { buildIncrementalPrompt, buildInitialPrompt } from "./session-namer.js";
+
+describe("lastScheduledTurn", () => {
+	it("returns 0 when turn count is below first threshold", () => {
+		expect(lastScheduledTurn(3, 4, 12)).toBe(0);
+	});
+
+	it("returns first threshold when at it", () => {
+		expect(lastScheduledTurn(4, 4, 12)).toBe(4);
+	});
+
+	it("returns last passed threshold", () => {
+		expect(lastScheduledTurn(9, 4, 12)).toBe(4);
+		expect(lastScheduledTurn(10, 4, 12)).toBe(10);
+		expect(lastScheduledTurn(17, 4, 12)).toBe(10);
+		expect(lastScheduledTurn(18, 4, 12)).toBe(18);
+		expect(lastScheduledTurn(39, 4, 12)).toBe(28);
+		expect(lastScheduledTurn(40, 4, 12)).toBe(40);
+		expect(lastScheduledTurn(100, 4, 12)).toBe(100); // exactly on threshold
+		expect(lastScheduledTurn(99, 4, 12)).toBe(88);   // between 88 and 100
+	});
+});
 
 describe("buildInitialPrompt", () => {
 	it("builds prompt from transcript messages only", () => {

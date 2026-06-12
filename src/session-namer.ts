@@ -160,11 +160,35 @@ export function isRenameTurn(turnIndex: number, interval: number, maxWindow: num
 	return threshold === turnIndex;
 }
 
+export function lastScheduledTurn(turnCount: number, interval: number, maxWindow: number): number {
+	if (turnCount < interval) return 0;
+	let threshold = interval;
+	let gap = interval;
+	let prev = 0;
+	while (threshold <= turnCount) {
+		prev = threshold;
+		gap = Math.min(gap + 2, maxWindow);
+		threshold += gap;
+	}
+	return prev;
+}
+
 export function registerSessionNamer(pi: ExtensionAPI) {
 	let namingInProgress = false;
 	let namingPromise: Promise<void> | undefined;
 	let assistantTurnCount = 0;
 	let lastRenameTurn = 0;
+
+	// Reconstruct state from existing session on startup/resume/reload
+	pi.on("session_start", (_event, ctx) => {
+		const branch = ctx.sessionManager.getBranch();
+		const transcript = buildTranscript(branch);
+		assistantTurnCount = transcript.filter((m) => m.label === "Assistant").length;
+
+		const interval = getNamingInterval();
+		const maxWindow = getMaxWindow();
+		lastRenameTurn = lastScheduledTurn(assistantTurnCount, interval, maxWindow);
+	});
 
 	// Command to configure the model
 	pi.registerCommand("session-namer-model", {
