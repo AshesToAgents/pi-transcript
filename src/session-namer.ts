@@ -49,11 +49,7 @@ export function getMaxWindow(): number {
 	return DEFAULT_MAX_WINDOW;
 }
 
-function transcriptToText(transcript: TranscriptMessage[]): string {
-	return transcript.map((m) => `${m.label}: ${m.text}`).join("\n\n");
-}
-
-const NAMING_PROMPT = [
+const INITIAL_NAMING_PROMPT = [
 	"Generate a name for this coding session that would help find it among dozens of other sessions.",
 	"Focus on the SPECIFIC outcome or change — not a list of topics touched.",
 	"Include distinguishing technical details that make the work unique.",
@@ -69,6 +65,30 @@ const NAMING_PROMPT = [
 	"",
 	"<conversation>",
 ].join("\n");
+
+const INCREMENTAL_NAMING_PROMPT = [
+	"Update this coding session's name based on the latest conversation.",
+	'Current session name: "CURRENT_NAME" (the session\'s primary focus)',
+	"",
+	"Treat the current name as authoritative. Only change it if the new work represents a fundamentally different activity, not a minor tangent.",
+	"When in doubt, extend rather than replace. Prefer adding context over discarding the original focus.",
+	"Keep distinguishing technical details. Be concrete about what was built, planned, debugged, or reviewed.",
+	"Return ONLY the updated session name, nothing else. No quotes, no explanation.",
+	"",
+	"<recent_conversation>",
+].join("\n");
+
+export function buildInitialPrompt(messages: TranscriptMessage[]): string {
+	const text = messages.map((m) => `${m.label}: ${m.text}`).join("\n\n");
+	return `${INITIAL_NAMING_PROMPT}\n${text}\n</conversation>`;
+}
+
+export function buildIncrementalPrompt(currentName: string, recentMessages: TranscriptMessage[]): string {
+	let prompt = INCREMENTAL_NAMING_PROMPT.replace("CURRENT_NAME", currentName);
+	const text = recentMessages.map((m) => `${m.label}: ${m.text}`).join("\n\n");
+	prompt += `\n${text}\n</recent_conversation>`;
+	return prompt;
+}
 
 async function generateSessionName(
 	transcript: TranscriptMessage[],
@@ -88,8 +108,8 @@ async function generateSessionName(
 	const auth = await modelRegistry?.getApiKeyAndHeaders(model);
 	if (!auth?.ok || !auth.apiKey) throw new Error(`No API key for ${modelSpec}`);
 
-	const conversationText = transcriptToText(transcript);
-	const prompt = `${NAMING_PROMPT}${conversationText}\n</conversation>`;
+	const conversationText = transcript.map((m) => `${m.label}: ${m.text}`).join("\n\n");
+	const prompt = `${INITIAL_NAMING_PROMPT}\n${conversationText}\n</conversation>`;
 
 	const response = await complete(
 		model,

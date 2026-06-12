@@ -88,3 +88,38 @@ describe("isRenameTurn (backoff schedule)", () => {
 		expect(isRenameTurn(34, 3, 10)).toBe(true);  // gap=10 (capped)
 	});
 });
+
+import { buildIncrementalPrompt, buildInitialPrompt } from "./session-namer.js";
+
+describe("buildInitialPrompt", () => {
+	it("builds prompt from transcript messages only", () => {
+		const messages = [
+			{ label: "You", text: "Add DKIM validation" },
+			{ label: "Assistant", text: "I'll implement that" },
+		];
+		const prompt = buildInitialPrompt(messages);
+		expect(prompt).toContain("<conversation>");
+		expect(prompt).toContain("You: Add DKIM validation");
+		expect(prompt).toContain("Assistant: I'll implement that");
+		expect(prompt).toContain("</conversation>");
+	});
+});
+
+describe("buildIncrementalPrompt", () => {
+	it("includes current name and recent messages", () => {
+		const recentMessages = [
+			{ label: "You", text: "Add tests for DNS lookup" },
+			{ label: "Assistant", text: "Adding unit tests now" },
+		];
+		const prompt = buildIncrementalPrompt("DKIM validation implementation", recentMessages);
+		expect(prompt).toContain('Current session name: "DKIM validation implementation"');
+		expect(prompt).toContain("You: Add tests for DNS lookup");
+		expect(prompt).toContain("Assistant: Adding unit tests now");
+	});
+
+	it("instructs model to treat current name as authoritative", () => {
+		const prompt = buildIncrementalPrompt("Some name", []);
+		expect(prompt).toContain("primary focus");
+		expect(prompt).toContain("extend rather than replace");
+	});
+});
