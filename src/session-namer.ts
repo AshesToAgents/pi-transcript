@@ -132,6 +132,17 @@ const SELECT_LIST_THEME = (theme: any) => ({
 	noMatch: (t: string) => theme.fg("warning", t),
 });
 
+export function isRenameTurn(turnIndex: number, interval: number, maxWindow: number): boolean {
+	if (turnIndex < interval) return false;
+	let threshold = interval;
+	let gap = interval;
+	while (threshold < turnIndex) {
+		gap = Math.min(gap + 2, maxWindow);
+		threshold += gap;
+	}
+	return threshold === turnIndex;
+}
+
 export function registerSessionNamer(pi: ExtensionAPI) {
 	// Command to configure the model
 	pi.registerCommand("session-namer-model", {
