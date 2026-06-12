@@ -131,13 +131,33 @@ async function generateSessionName(
 		cacheWrite: response.usage?.cacheWrite ?? 0,
 	});
 
-	const name = response.content
-		.filter((c): c is { type: "text"; text: string } => c.type === "text")
-		.map((c) => c.text)
-		.join("")
-		.trim();
+	const extractName = (resp: typeof response): string =>
+		resp.content
+			.filter((c): c is { type: "text"; text: string } => c.type === "text")
+			.map((c) => c.text)
+			.join("")
+			.trim();
 
-	if (!name || name.length === 0) throw new Error("Model returned empty response");
+	let name = extractName(response);
+	if (!name) {
+		const retry = await complete(
+			model,
+			{
+				messages: [
+					{ role: "user" as const, content: [{ type: "text" as const, text: prompt }], timestamp: Date.now() },
+				],
+			},
+			{ apiKey: auth.apiKey, headers: auth.headers },
+		);
+		extensions?.emit("model:usage", {
+			provider: model.provider, model: model.id,
+			input: retry.usage?.input ?? 0, output: retry.usage?.output ?? 0,
+			cacheRead: retry.usage?.cacheRead ?? 0, cacheWrite: retry.usage?.cacheWrite ?? 0,
+		});
+		name = extractName(retry);
+	}
+
+	if (!name) throw new Error("Model returned empty response");
 	return name;
 }
 
