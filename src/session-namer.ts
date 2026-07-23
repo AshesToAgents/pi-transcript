@@ -1,9 +1,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { complete } from "@mariozechner/pi-ai";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { DynamicBorder, getAgentDir } from "@mariozechner/pi-coding-agent";
-import { type SelectItem, SelectList, Text } from "@mariozechner/pi-tui";
+import { complete } from "@earendil-works/pi-ai/compat";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { DynamicBorder, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { type SelectItem, SelectList, Text } from "@earendil-works/pi-tui";
 import { buildTranscript, takeLast, type TranscriptMessage } from "./transcript.js";
 
 const SETTINGS_KEY = "sessionNamerModel";

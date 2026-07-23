@@ -1,6 +1,6 @@
 # pi-transcript
 
-A [pi](https://github.com/mariozechner/pi-coding-agent) extension that adds session transcript viewing and automatic session naming.
+A [pi](https://github.com/earendil-works/pi) extension that adds session transcript viewing and automatic session naming.
 
 ## Install
 
