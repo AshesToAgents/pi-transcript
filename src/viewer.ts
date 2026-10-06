@@ -1,15 +1,13 @@
 import { matchesKey, sliceByColumn, visibleWidth } from "@earendil-works/pi-tui";
 import type { Component, TuiMouseEvent, TuiMouseEventResult } from "@earendil-works/pi-tui";
 
-const HEADER_LINES = 2; // title + rule
-const FOOTER_LINES = 1; // position indicator, only when scrollable
+const FRAME_LINES = 2; // top + bottom border
 
 /**
  * Compute the visible body height for a viewer given the terminal size.
  *
  * The viewer never claims more than `maxRatio` of the terminal rows. When the
- * content fits, it renders in full without scroll chrome. When it overflows,
- * one line is reserved for the position footer.
+ * content fits, it renders in full without scroll chrome.
  */
 export function computeGeometry(
 	contentLines: number,
@@ -17,11 +15,11 @@ export function computeGeometry(
 	maxRatio = 0.85,
 	minViewport = 3,
 ): ViewerGeometry {
-	const budget = Math.floor(termRows * maxRatio) - HEADER_LINES;
+	const budget = Math.floor(termRows * maxRatio) - FRAME_LINES;
 	if (contentLines <= budget) {
 		return { viewportLines: contentLines, scrollable: false };
 	}
-	return { viewportLines: Math.max(minViewport, budget - FOOTER_LINES), scrollable: true };
+	return { viewportLines: Math.max(minViewport, budget), scrollable: true };
 }
 
 /** Clamp a scroll offset to the valid range for the given content/viewport. */
@@ -100,19 +98,30 @@ export class TranscriptViewer implements Component {
 
 	render(width: number): string[] {
 		const theme = this.options.theme;
-		const lines = this.contentAt(width);
-		const { viewportLines, scrollable } = computeGeometry(
+		const rail = theme.fg("border", "│");
+
+		// Two-step width resolution: wrapping without the gutter first, then
+		// re-wrap one column narrower when a scrollbar gutter is needed.
+		let lines = this.contentAt(Math.max(1, width - 2));
+		let geometry = computeGeometry(
 			lines.length,
 			this.options.getTerminalSize().rows,
 			this.options.maxRatio,
 			this.options.minViewport,
 		);
+		if (geometry.scrollable) {
+			lines = this.contentAt(Math.max(1, width - 3));
+			geometry = computeGeometry(
+				lines.length,
+				this.options.getTerminalSize().rows,
+				this.options.maxRatio,
+				this.options.minViewport,
+			);
+		}
+		const { viewportLines, scrollable } = geometry;
 		this.scrollTop = clampScroll(this.scrollTop, lines.length, viewportLines);
 
-		const title = `${theme.fg("accent", theme.bold(this.options.title))}  ${theme.fg("dim", "(j/k/↑/↓ scroll · Esc to close)")}`;
-		const rule = theme.fg("dim", "─".repeat(Math.max(1, width)));
-
-		const bodyWidth = scrollable ? Math.max(1, width - 1) : width;
+		const bodyWidth = Math.max(1, width - 2 - (scrollable ? 1 : 0));
 		const body: string[] = [];
 		for (let i = 0; i < viewportLines; i++) {
 			const line = lines[this.scrollTop + i] ?? "";
@@ -120,16 +129,41 @@ export class TranscriptViewer implements Component {
 				visibleWidth(line) >= bodyWidth
 					? sliceByColumn(line, 0, bodyWidth, true)
 					: line + " ".repeat(bodyWidth - visibleWidth(line));
-			body.push(scrollable ? padded + this.gutterChar(i, viewportLines) : padded);
+			body.push(rail + padded + (scrollable ? this.gutterChar(i, viewportLines) : "") + rail);
 		}
 
-		const rendered = [title, rule, ...body];
-		if (scrollable) {
-			const from = this.scrollTop + 1;
-			const to = this.scrollTop + viewportLines;
-			rendered.push(`${theme.fg("dim", `lines ${from}–${to} of ${lines.length}  ·  `)}${theme.fg("dim", "g/G jump · PgUp/PgDn page")}`);
+		const top = this.borderRow(width, {
+			start: "┌─ ",
+			end: "┐",
+			segments: [theme.fg("accent", theme.bold(this.options.title))],
+			hint: theme.fg("dim", "(j/k/↑/↓ scroll · Esc to close)"),
+		});
+		const from = this.scrollTop + 1;
+		const to = this.scrollTop + viewportLines;
+		const bottom = this.borderRow(width, {
+			start: scrollable ? "└─ " : "└",
+			end: "┘",
+			segments: scrollable ? [theme.fg("dim", `lines ${from}–${to} of ${lines.length}`)] : [],
+		});
+		return [top, ...body, bottom];
+	}
+
+	/** Compose a styled frame border row with optional embedded segments. */
+	private borderRow(
+		width: number,
+		opts: { start: string; end: string; segments: string[]; hint?: string },
+	): string {
+		const theme = this.options.theme;
+		const parts = [theme.fg("border", opts.start), ...opts.segments];
+		let used = visibleWidth(opts.start);
+		for (const segment of opts.segments) used += visibleWidth(segment) + 1;
+		if (opts.hint && used + visibleWidth(opts.hint) + 3 <= width) {
+			parts.push(" ", opts.hint);
+			used += visibleWidth(opts.hint) + 1;
 		}
-		return rendered;
+		const fill = Math.max(0, width - used - visibleWidth(opts.end));
+		parts.push(theme.fg("border", "─".repeat(fill) + opts.end));
+		return parts.join("");
 	}
 
 	/** Scrollbar gutter character for a body row (track or thumb). */

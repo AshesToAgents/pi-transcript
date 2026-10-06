@@ -60,10 +60,10 @@ const makeViewer = (opts?: {
 	};
 };
 
-/** Body slice of the rendered view (skips title + rule line). */
+/** Body slice of the rendered view (between the frame borders). */
 const bodyOf = (viewer: TranscriptViewer) => {
 	const rendered = viewer.render(80);
-	return rendered.slice(2, rendered.length - 1);
+	return rendered.slice(1, rendered.length - 1);
 };
 
 describe("computeGeometry", () => {
@@ -71,9 +71,9 @@ describe("computeGeometry", () => {
 		expect(computeGeometry(5, 40)).toEqual({ viewportLines: 5, scrollable: false });
 	});
 
-	it("reserves gutter/footer space when content overflows", () => {
-		// floor(40 * 0.85) = 34 total; 34 - 2 header - 1 footer = 31 body
-		expect(computeGeometry(100, 40)).toEqual({ viewportLines: 31, scrollable: true });
+	it("reserves frame rows when content overflows", () => {
+		// floor(40 * 0.85) = 34; 34 - 2 frame borders = 32 body
+		expect(computeGeometry(100, 40)).toEqual({ viewportLines: 32, scrollable: true });
 	});
 
 	it("never shrinks below the minimum viewport", () => {
@@ -98,27 +98,34 @@ describe("clampScroll", () => {
 });
 
 describe("TranscriptViewer", () => {
-	it("renders bounded height with footer when scrollable", () => {
+	it("renders a frame with the title and position embedded", () => {
 		const { viewer } = makeViewer();
 		const rendered = viewer.render(80);
-		// 2 header + 31 body + 1 footer = 34 = floor(40 * 0.85)
+		// 1 top border + 32 body + 1 bottom border = 34 = floor(40 * 0.85)
 		expect(rendered.length).toBe(34);
 		expect(rendered[0]).toContain("Session Transcript");
+		expect(rendered[0]).toContain("┌");
+		expect(rendered.at(-1)).toContain("lines 1–32 of 100");
+		expect(rendered.at(-1)).toContain("└");
 		expect(bodyOf(viewer)[0]).toContain("line-000");
+		expect(bodyOf(viewer)[0]).toContain("│line-000");
 	});
 
-	it("renders all lines without chrome when content fits", () => {
+	it("renders all lines without gutter when content fits", () => {
 		const { viewer } = makeViewer({ lines: makeLines(5) });
 		const rendered = viewer.render(80);
-		expect(rendered.length).toBe(7); // title + rule + 5 lines
-		expect(rendered[6]).toContain("line-004");
-		expect(rendered[6]).not.toContain("│");
+		expect(rendered.length).toBe(7); // top border + 5 lines + bottom border
+		expect(rendered[5]).toContain("│line-004");
+		expect(rendered[5].endsWith("│")).toBe(true);
+		expect(rendered[6]).toContain("└");
+		expect(rendered[5]).not.toContain("┃"); // no scrollbar thumb
 	});
 
-	it("passes the render width to the content builder", () => {
+	it("passes the body width (minus frame and gutter) to the content builder", () => {
 		const { viewer, widths } = makeViewer();
 		viewer.render(80);
-		expect(widths).toContain(80);
+		// 80 - 2 rails - 1 scrollbar gutter
+		expect(widths).toContain(77);
 	});
 
 	it("scrolls one line for down/up arrows and j/k", () => {
@@ -136,7 +143,7 @@ describe("TranscriptViewer", () => {
 	it("scrolls a page minus overlap for pageUp/pageDown", () => {
 		const { viewer } = makeViewer();
 		viewer.handleInput("\x1b[6~"); // pageDown
-		expect(bodyOf(viewer)[0]).toContain("line-030"); // 31 - 1 overlap
+		expect(bodyOf(viewer)[0]).toContain("line-031"); // 32 - 1 overlap
 		viewer.handleInput("\x1b[5~"); // pageUp
 		expect(bodyOf(viewer)[0]).toContain("line-000");
 	});
@@ -144,7 +151,7 @@ describe("TranscriptViewer", () => {
 	it("scrolls half a page for ctrl+d/ctrl+u", () => {
 		const { viewer } = makeViewer();
 		viewer.handleInput("\x04"); // ctrl+d
-		expect(bodyOf(viewer)[0]).toContain("line-015"); // floor(31 / 2)
+		expect(bodyOf(viewer)[0]).toContain("line-016"); // floor(32 / 2)
 		viewer.handleInput("\x15"); // ctrl+u
 		expect(bodyOf(viewer)[0]).toContain("line-000");
 	});
@@ -152,12 +159,12 @@ describe("TranscriptViewer", () => {
 	it("jumps to start/end for home/end and g/G", () => {
 		const { viewer } = makeViewer();
 		viewer.handleInput("\x1b[F"); // end
-		expect(bodyOf(viewer)[0]).toContain("line-069");
-		expect(bodyOf(viewer)[30]).toContain("line-099");
+		expect(bodyOf(viewer)[0]).toContain("line-068");
+		expect(bodyOf(viewer)[31]).toContain("line-099");
 		viewer.handleInput("g");
 		expect(bodyOf(viewer)[0]).toContain("line-000");
 		viewer.handleInput("G");
-		expect(bodyOf(viewer)[0]).toContain("line-069");
+		expect(bodyOf(viewer)[0]).toContain("line-068");
 		viewer.handleInput("\x1b[H"); // home
 		expect(bodyOf(viewer)[0]).toContain("line-000");
 	});
@@ -166,7 +173,7 @@ describe("TranscriptViewer", () => {
 		const { viewer } = makeViewer();
 		viewer.handleInput("\x1b[F");
 		for (let i = 0; i < 5; i++) viewer.handleInput("j");
-		expect(bodyOf(viewer)[0]).toContain("line-069");
+		expect(bodyOf(viewer)[0]).toContain("line-068");
 	});
 
 	it("closes on escape, q, and enter", () => {
@@ -205,12 +212,12 @@ describe("TranscriptViewer", () => {
 
 	it("clamps scrollTop when the viewport grows on resize", () => {
 		const { viewer, setTerm } = makeViewer();
-		viewer.handleInput("\x1b[F"); // scrollTop = 69 (max for viewport 31)
-		setTerm(60); // floor(60 * 0.85) = 51; body = 51 - 3 = 48; max scroll = 52
+		viewer.handleInput("\x1b[F"); // scrollTop = 68 (max for viewport 32)
+		setTerm(60); // floor(60 * 0.85) = 51; body = 51 - 2 = 49; max scroll = 51
 		const rendered = viewer.render(80);
 		expect(rendered.length).toBe(51);
-		expect(bodyOf(viewer)[0]).toContain("line-052"); // clamped 69 -> 52
-		expect(bodyOf(viewer)[47]).toContain("line-099");
+		expect(bodyOf(viewer)[0]).toContain("line-051"); // clamped 68 -> 51
+		expect(bodyOf(viewer)[48]).toContain("line-099");
 	});
 
 	it("recomputes content after invalidate", () => {
