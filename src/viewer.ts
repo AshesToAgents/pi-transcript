@@ -99,7 +99,7 @@ export class TranscriptViewer implements Component {
 	}
 
 	render(width: number): string[] {
-		const { fg, bold } = this.options.theme;
+		const theme = this.options.theme;
 		const lines = this.contentAt(width);
 		const { viewportLines, scrollable } = computeGeometry(
 			lines.length,
@@ -109,8 +109,8 @@ export class TranscriptViewer implements Component {
 		);
 		this.scrollTop = clampScroll(this.scrollTop, lines.length, viewportLines);
 
-		const title = `${fg("accent", bold(this.options.title))}  ${fg("dim", "(j/k/↑/↓ scroll · Esc to close)")}`;
-		const rule = fg("dim", "─".repeat(Math.max(1, width)));
+		const title = `${theme.fg("accent", theme.bold(this.options.title))}  ${theme.fg("dim", "(j/k/↑/↓ scroll · Esc to close)")}`;
+		const rule = theme.fg("dim", "─".repeat(Math.max(1, width)));
 
 		const bodyWidth = scrollable ? Math.max(1, width - 1) : width;
 		const body: string[] = [];
@@ -127,21 +127,21 @@ export class TranscriptViewer implements Component {
 		if (scrollable) {
 			const from = this.scrollTop + 1;
 			const to = this.scrollTop + viewportLines;
-			rendered.push(`${fg("dim", `lines ${from}\u2013${to} of ${lines.length}  \u00b7  `)}${fg("dim", "g/G jump · PgUp/PgDn page")}`);
+			rendered.push(`${theme.fg("dim", `lines ${from}–${to} of ${lines.length}  ·  `)}${theme.fg("dim", "g/G jump · PgUp/PgDn page")}`);
 		}
 		return rendered;
 	}
 
 	/** Scrollbar gutter character for a body row (track or thumb). */
 	private gutterChar(row: number, viewportLines: number): string {
-		const { fg } = this.options.theme;
+		const theme = this.options.theme;
 		const lines = this.ensureContent();
 		const maxScrollTop = this.maxScrollTop(lines.length, viewportLines);
-		if (maxScrollTop <= 0) return fg("dim", "│");
+		if (maxScrollTop <= 0) return theme.fg("dim", "│");
 		const thumbSize = Math.max(1, Math.round((viewportLines * viewportLines) / lines.length));
 		const thumbStart = Math.round((this.scrollTop / maxScrollTop) * (viewportLines - thumbSize));
 		const isThumb = row >= thumbStart && row < thumbStart + thumbSize;
-		return isThumb ? fg("accent", "┃") : fg("dim", "│");
+		return isThumb ? theme.fg("accent", "┃") : theme.fg("dim", "│");
 	}
 
 	handleInput(data: string): void {

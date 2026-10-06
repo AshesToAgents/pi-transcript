@@ -1,9 +1,16 @@
 import { describe, it, expect, vi } from "vitest";
 import { computeGeometry, clampScroll, TranscriptViewer } from "./viewer.js";
 
+// Mimic the real Theme: methods read state through `this`, so destructuring
+// them off the object (as the real crash showed) breaks the receiver binding.
 const identityTheme = {
-	fg: (_color: string, text: string) => text,
-	bold: (text: string) => text,
+	colors: { accent: "accent", dim: "dim", success: "success" } as Record<string, string>,
+	fg(this: { colors: Record<string, string> }, color: string, text: string) {
+		return `[${this.colors[color]}]${text}`;
+	},
+	bold(this: object, text: string) {
+		return `**${text}**`;
+	},
 };
 
 const makeLines = (count: number) =>
