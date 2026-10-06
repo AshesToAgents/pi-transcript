@@ -1,6 +1,6 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import { DynamicBorder } from "@earendil-works/pi-coding-agent";
-import { Container, matchesKey, Text } from "@earendil-works/pi-tui";
+import { Text } from "@earendil-works/pi-tui";
+import { TranscriptViewer } from "./viewer.js";
 
 type ContentBlock = {
 	type?: string;
@@ -84,28 +84,31 @@ export function takeLast(messages: TranscriptMessage[], count: number): Transcri
 const showTranscript = async (transcript: TranscriptMessage[], ctx: ExtensionCommandContext) => {
 	if (!ctx.hasUI) return;
 
-	await ctx.ui.custom((_tui, theme, _kb, done) => {
-		const container = new Container();
-		const border = new DynamicBorder((s: string) => theme.fg("accent", s));
-
-		container.addChild(new Text(theme.fg("accent", theme.bold("Session Transcript")) + "  " + theme.fg("dim", "(Esc to close)"), 1, 0));
-		container.addChild(border);
-
-		for (const msg of transcript) {
-			const header = theme.fg(msg.label === "You" ? "accent" : "success", theme.bold(msg.label + ":"));
-			container.addChild(new Text(header + " " + msg.text, 1, 0));
-		}
-
-		return {
-			render: (width: number) => container.render(width),
-			invalidate: () => container.invalidate(),
-			handleInput: (data: string) => {
-				if (matchesKey(data, "escape") || matchesKey(data, "enter") || matchesKey(data, "q")) {
-					done(undefined);
+	await ctx.ui.custom(
+		(tui, theme, _kb, done) => {
+			const content = (width: number) => {
+				const lines: string[] = [];
+				for (const msg of transcript) {
+					const header = theme.fg(msg.label === "You" ? "accent" : "success", theme.bold(msg.label + ":"));
+					lines.push(...new Text(header + " " + msg.text, 1, 0).render(width));
 				}
-			},
-		};
-	});
+				return lines;
+			};
+
+			return new TranscriptViewer({
+				title: "Session Transcript",
+				content,
+				theme,
+				getTerminalSize: () => ({ rows: tui.terminal.rows, columns: tui.terminal.columns }),
+				requestRender: () => tui.requestRender(),
+				onClose: () => done(undefined),
+			});
+		},
+		{
+			overlay: true,
+			overlayOptions: { width: "85%", maxHeight: "90%", anchor: "center" },
+		},
+	);
 };
 
 export function registerTranscript(pi: ExtensionAPI) {

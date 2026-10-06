@@ -27,7 +27,7 @@ pi -e ssh://git@github.com/AshesToAgents/pi-transcript.git
 
 ### `/transcript`
 
-Opens a full-screen TUI view of the current session's user and assistant messages, stripping out tool noise so you see just the conversation. Press Escape, Enter, or Q to close.
+Opens a centered overlay view of the current session's user and assistant messages, stripping out tool noise so you see just the conversation. Scroll with the mouse wheel, arrows, or j/k; PgUp/PgDn and Ctrl+D/Ctrl+U move by page or half page; g/Home and G/End jump to the top or bottom. Press Escape, Enter, or Q to close.
 
 ### `/session-rename [name]`
 
